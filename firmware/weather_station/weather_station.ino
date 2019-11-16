@@ -21,20 +21,23 @@
 
 #define LOOP_DELAY 1000
 
+#define TEMPERATURE_MODE  0
+#define PRESSURE_MODE     1
+#define HUMIDITY_MODE     2
+#define TIME_MODE         3
+#define SETTINGS_MODE     4
+
 Adafruit_BME280 bme; // I2C
 TM1637 tm1637(CLK, DIO);
 
 unsigned long delayTime;
+byte mode = TEMPERATURE_MODE;
 
 void setup() {
   Serial.begin(9600);
   Serial.println(F("BME280 test"));
 
-  bool status;
-
-  // default settings
-  // (you can also pass in a Wire library object like &Wire2)
-  status = bme.begin();
+  bool status = bme.begin();
   if (!status) {
     Serial.println("Could not find a valid BME280 sensor, check wiring!");
     while (1);
@@ -48,20 +51,67 @@ void setup() {
   initDisplay();
 }
 
-
 void loop() {
-  printValues();
-  displayTime(15, 20);
-
-  delay(LOOP_DELAY);
+  tickEncoder();
+  tickTemperature();
+  tickPressure();
+  tickHumidity();
+  tickTime();
+  tickSettings();
 }
 
 void initDisplay() {
-  tm1637.set();
+  tm1637.set(7);
   tm1637.init();
 }
 
+void tickEncoder() {
+
+}
+
+void tickTemperature() {
+  if (TEMPERATURE_MODE == mode) {
+    float temperature = bme.readTemperature(); // *C
+    printTemperature(temperature);
+  }
+}
+
+void tickPressure() {
+  if (PRESSURE_MODE == mode) {
+    float pressure = (bme.readPressure() / 100.0F); // hPa
+    printHumidity(pressure);
+  }
+}
+
+void tickHumidity() {
+  if (HUMIDITY_MODE == mode) {
+    float humidity = bme.readHumidity(); // "%"
+    printHumidity(humidity);
+  }
+}
+
+void tickTime() {
+  if (TIME_MODE == mode) {
+
+  }
+}
+
+void tickSettings() {
+  if (SETTINGS_MODE == mode) {
+
+  }
+}
+
 void printTemperature(float temperature) {
+
+}
+
+
+void printHumidity(float humidity) {
+
+}
+
+void printPressure(float pressure) {
 
 }
 
@@ -69,9 +119,6 @@ void printTime() {
 
 }
 
-void printHumidity() {
-
-}
 
 void printValues() {
   Serial.print("Temperature = ");
