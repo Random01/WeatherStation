@@ -9,7 +9,6 @@
 */
 
 #include <Wire.h>
-#include <SPI.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
 #include <TM1637.h>
@@ -18,8 +17,6 @@
 #define DIO 4 // DISPLAY pins definitions for TM1637 and can be changed to other ports
 
 #define SEALEVELPRESSURE_HPA (1013.25)
-
-#define LOOP_DELAY 1000
 
 #define TEMPERATURE_MODE  0
 #define PRESSURE_MODE     1
@@ -32,6 +29,7 @@ TM1637 tm1637(CLK, DIO);
 
 unsigned long delayTime;
 byte mode = TEMPERATURE_MODE;
+int8_t timeDisplay[] = {0x00, 0x00, 0x00, 0x00};
 
 void setup() {
   Serial.begin(9600);
@@ -61,8 +59,8 @@ void loop() {
 }
 
 void initDisplay() {
-  tm1637.set(7);
   tm1637.init();
+  tm1637.set(BRIGHT_TYPICAL);
 }
 
 void tickEncoder() {
@@ -112,13 +110,12 @@ void printHumidity(float humidity) {
 }
 
 void printPressure(float pressure) {
-
+  print(pressure / 10, pressure % 10,  pressure / 10, pressure % 10);
 }
 
-void printTime() {
-
+void printTime(int hours, int minutes) {
+  print(hours / 10, hours % 10,  minutes / 10, minutes % 10, POINT_ON);
 }
-
 
 void printValues() {
   Serial.print("Temperature = ");
@@ -141,17 +138,16 @@ void printValues() {
   Serial.println();
 }
 
-void displayTime(int hours, int minutes) {
-  print(hours / 10, hours % 10,  minutes / 10, minutes % 10);
+void print(int firstSegment, int secondSegment, int thirdSegment, int fourthSegment) {
+  print(firstSegment, secondSegment, thirdSegment, fourthSegment, POINT_OFF);
 }
 
-void print(int firstSegment, int secondSegment, int thirdSegment, int fourthSegment) {
-  int8_t timeDisplay[] = {0x00, 0x00, 0x00, 0x00};
-
+void print(int firstSegment, int secondSegment, int thirdSegment, int fourthSegment, bool point) {
   timeDisplay[0] = firstSegment;
   timeDisplay[1] = secondSegment;
   timeDisplay[2] = thirdSegment;
   timeDisplay[3] = fourthSegment;
 
+  tm1637.point(point);
   tm1637.display(timeDisplay);
 }
