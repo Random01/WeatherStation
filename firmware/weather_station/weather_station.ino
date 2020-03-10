@@ -9,30 +9,49 @@
 */
 
 #include <Wire.h>
+#include <SPI.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
 #include <TM1637.h>
 
+#include <OneWire.h>
+#include <DallasTemperature.h>
+
 #define CLK 5 // DISPLAY pins definitions for TM1637 and can be changed to other ports
 #define DIO 4 // DISPLAY pins definitions for TM1637 and can be changed to other ports
 
+#define ONE_WIRE_BUS 8 // DS1820 Pin
+
 #define SEALEVELPRESSURE_HPA (1013.25)
 
-#define TEMPERATURE_MODE  0
-#define PRESSURE_MODE     1
-#define HUMIDITY_MODE     2
-#define TIME_MODE         3
-#define SETTINGS_MODE     4
+#define TEMPERATURE_BME_MODE 0
+#define TEMPERATURE_DS1_MODE 1
+#define PRESSURE_MODE        2
+#define HUMIDITY_MODE        3
+#define TIME_MODE            4
+#define SETTINGS_MODE        5
+
+#define BME280_ADDRESS (0x76)
 
 Adafruit_BME280 bme; // I2C
 TM1637 tm1637(CLK, DIO);
 
-unsigned long delayTime;
-byte mode = TEMPERATURE_MODE;
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensor(&oneWire);
+
+unsigned long delayTime = 1000;
+byte mode = TEMPERATURE_DS1_MODE;
 int8_t timeDisplay[] = {0x00, 0x00, 0x00, 0x00};
 
 void setup() {
   Serial.begin(9600);
+
+  initBmeSensor();
+  initDs1Sensor();
+  initDisplay();
+}
+
+void initBmeSensor() {
   Serial.println(F("BME280 test"));
 
   bool status = bme.begin();
@@ -41,21 +60,25 @@ void setup() {
     while (1);
   }
 
-  Serial.println("-- Default Test --");
-  delayTime = 1000;
-
+  Serial.println("BME280 has been found");
   Serial.println();
+}
 
-  initDisplay();
+void initDs1Sensor() {
+  sensor.begin();
+  sensor.setResolution(12);
 }
 
 void loop() {
   tickEncoder();
-  tickTemperature();
+  tickTemperatureBme();
+  tickTemperatureDs1();
   tickPressure();
   tickHumidity();
   tickTime();
   tickSettings();
+
+  delay(delayTime);
 }
 
 void initDisplay() {
@@ -67,9 +90,17 @@ void tickEncoder() {
 
 }
 
-void tickTemperature() {
-  if (TEMPERATURE_MODE == mode) {
+void tickTemperatureBme() {
+  if (TEMPERATURE_BME_MODE == mode) {
     float temperature = bme.readTemperature(); // *C
+    printTemperature(temperature);
+  }
+}
+
+void tickTemperatureDs1() {
+  if (TEMPERATURE_DS1_MODE == mode) {
+    sensor.requestTemperatures();
+    float temperature = sensor.getTempCByIndex(0); // *C
     printTemperature(temperature);
   }
 }
@@ -110,11 +141,11 @@ void printHumidity(float humidity) {
 }
 
 void printPressure(float pressure) {
-  print(pressure / 10, pressure % 10,  pressure / 10, pressure % 10);
+
 }
 
 void printTime(int hours, int minutes) {
-  print(hours / 10, hours % 10,  minutes / 10, minutes % 10, POINT_ON);
+
 }
 
 void printValues() {
