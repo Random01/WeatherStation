@@ -16,6 +16,7 @@
 
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include <RTClib.h>
 
 #define CLK 5 // DISPLAY pins definitions for TM1637 and can be changed to other ports
 #define DIO 4 // DISPLAY pins definitions for TM1637 and can be changed to other ports
@@ -39,23 +40,50 @@ TM1637 tm1637(CLK, DIO);
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensor(&oneWire);
 
+RTC_DS3231 rtc;
+
 unsigned long delayTime = 1000;
-byte mode = TEMPERATURE_DS1_MODE;
+byte mode = TIME_MODE;
 int8_t timeDisplay[] = {0x00, 0x00, 0x00, 0x00};
+int previous_second = -1;
+bool curr_dots = POINT_OFF; // displays dots in clock
 
 void setup() {
   Serial.begin(9600);
 
   initBmeSensor();
+  initRTC();
   initDs1Sensor();
   initDisplay();
+}
+
+void initRTC() {
+  Serial.println(F("RTC test"));
+
+  if (!rtc.begin()) {
+    Serial.println("Couldn't find a valid RTC, check wiring!");
+    while (1);
+  }
+
+  Serial.println("RTC has been found");
+  Serial.println();
+}
+
+void restoreTime() {
+  if (rtc.lostPower()) {
+    Serial.println("RTC lost power, lets set the time!");
+    // following line sets the RTC to the date & time this sketch was compiled
+    // This line sets the RTC with an explicit date & time, for example to set
+    // January 21, 2014 at 3am you would call:
+    // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  }
 }
 
 void initBmeSensor() {
   Serial.println(F("BME280 test"));
 
-  bool status = bme.begin();
-  if (!status) {
+  if (! bme.begin()) {
     Serial.println("Could not find a valid BME280 sensor, check wiring!");
     while (1);
   }
@@ -87,7 +115,6 @@ void initDisplay() {
 }
 
 void tickEncoder() {
-
 }
 
 void tickTemperatureBme() {
@@ -120,8 +147,14 @@ void tickHumidity() {
 }
 
 void tickTime() {
-  if (TIME_MODE == mode) {
+  DateTime now = rtc.now();
+  if (previous_second != now.second()) {
+    previous_second = now.second();
+    curr_dots = !curr_dots;
+  }
 
+  if (TIME_MODE == mode) {
+    printTime(now.hour(), now.minute(), curr_dots);
   }
 }
 
@@ -144,8 +177,8 @@ void printPressure(float pressure) {
 
 }
 
-void printTime(int hours, int minutes) {
-
+void printTime(int hours, int minutes, bool dots) {
+  print(hours / 10, hours % 10, minutes / 10, minutes % 10, dots);
 }
 
 void printValues() {
@@ -173,12 +206,12 @@ void print(int firstSegment, int secondSegment, int thirdSegment, int fourthSegm
   print(firstSegment, secondSegment, thirdSegment, fourthSegment, POINT_OFF);
 }
 
-void print(int firstSegment, int secondSegment, int thirdSegment, int fourthSegment, bool point) {
+void print(int firstSegment, int secondSegment, int thirdSegment, int fourthSegment, bool dots) {
   timeDisplay[0] = firstSegment;
   timeDisplay[1] = secondSegment;
   timeDisplay[2] = thirdSegment;
   timeDisplay[3] = fourthSegment;
 
-  tm1637.point(point);
+  tm1637.point(dots);
   tm1637.display(timeDisplay);
 }
