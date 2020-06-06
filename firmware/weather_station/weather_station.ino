@@ -19,7 +19,6 @@
 #include <SPI.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
-#include <TM1637.h>
 
 #include <OneWire.h>
 #include <DallasTemperature.h>
@@ -61,16 +60,18 @@ DallasTemperature sensor(&oneWire);
 
 RTC_DS3231 rtc;
 
-unsigned long delayTime = 1000;
-byte mode = TIME_MODE;
-int8_t timeDisplay[] = {0x00, 0x00, 0x00, 0x00};
+int mode = TIME_MODE;
+
 int previous_second = -1;
+bool is_updating = false;
 bool curr_dots = POINT_OFF; // displays dots in clock
+
+int value = 0;
 
 void setup() {
   Serial.begin(9600);
 
-  initBmeSensor();
+  //initBmeSensor();
   initRTC();
   initDs1Sensor();
   initDisplay();
@@ -124,21 +125,36 @@ void initDs1Sensor() {
 void loop() {
   tickEncoder();
 
-  tickTemperatureBme();
+  DateTime now = rtc.now();
+  uint8_t second =  now.second();
+  if (previous_second != second) {
+    previous_second = second;
+    curr_dots = !curr_dots;
+    // let's update UI each second
+    is_updating = true;
+  }
+
+  //tickTemperatureBme();
   tickTemperatureDs1();
 
-  tickPressure();
-  tickHumidity();
+  //tickPressure();
+  //tickHumidity();
   tickTime();
 
-  tickSettings();
+  //tickSettings();
 
-  delay(delayTime);
+  //delay(delayTime);
+  if (is_updating && (mode != TIME_MODE && mode != TEMPERATURE_DS1_MODE)) {
+    disp.point(POINT_OFF);
+    disp.displayByte(0x40, 0x40, 0x40, 0x40);
+  }
+
+  is_updating = false;
 }
 
 void initDisplay() {
   disp.clear();
-  disp.brightness(4);
+  disp.brightness(BRIGHT_TYPICAL);
 }
 
 void tickEncoder() {
@@ -152,17 +168,21 @@ void tickEncoder() {
   } else if (mode >= MENU_ITEMS_COUNT) {
     mode = 0;
   }
+
+  if (enc1.isTurn()) {
+    is_updating = true;
+  }
 }
 
 void tickTemperatureBme() {
-  if (TEMPERATURE_BME_MODE == mode) {
+  if (is_updating == true && TEMPERATURE_BME_MODE == mode) {
     float temperature = bme.readTemperature(); // *C
     printTemperature(temperature);
   }
 }
 
 void tickTemperatureDs1() {
-  if (TEMPERATURE_DS1_MODE == mode) {
+  if (is_updating == true && TEMPERATURE_DS1_MODE == mode) {
     sensor.requestTemperatures();
     float temperature = sensor.getTempCByIndex(0); // *C
     printTemperature(temperature);
@@ -170,27 +190,22 @@ void tickTemperatureDs1() {
 }
 
 void tickPressure() {
-  if (PRESSURE_MODE == mode) {
+  if (is_updating == true && PRESSURE_MODE == mode) {
     float pressure = (bme.readPressure() / 100.0F); // hPa
     printHumidity(pressure);
   }
 }
 
 void tickHumidity() {
-  if (HUMIDITY_MODE == mode) {
+  if (is_updating == true && HUMIDITY_MODE == mode) {
     float humidity = bme.readHumidity(); // "%"
     printHumidity(humidity);
   }
 }
 
 void tickTime() {
-  DateTime now = rtc.now();
-  if (previous_second != now.second()) {
-    previous_second = now.second();
-    curr_dots = !curr_dots;
-  }
-
-  if (TIME_MODE == mode) {
+  if (is_updating && TIME_MODE == mode) {
+    DateTime now = rtc.now();
     printTime(now.hour(), now.minute(), curr_dots);
   }
 }
@@ -202,54 +217,19 @@ void tickSettings() {
 }
 
 void printTemperature(float temperature) {
-  disp.displayInt(-999);
+  disp.displayInt(int(temperature));
 }
 
 
 void printHumidity(float humidity) {
-  disp.displayInt(-999);
+  disp.displayInt(int(humidity));
 }
 
 void printPressure(float pressure) {
-  disp.displayInt(-999);
+  disp.displayInt(int(pressure));
 }
 
 void printTime(int hours, int minutes, bool dots) {
-  disp.point(flag);
+  disp.point(dots);
   disp.displayClock(hours, minutes);
-}
-
-//void printValues() {
-//  Serial.print("Temperature = ");
-//  Serial.print(bme.readTemperature());
-//  Serial.println(" *C");
-//
-//  Serial.print("Pressure = ");
-//
-//  Serial.print(bme.readPressure() / 100.0F);
-//  Serial.println(" hPa");
-//
-//  Serial.print("Approx. Altitude = ");
-//  Serial.print(bme.readAltitude(SEALEVELPRESSURE_HPA));
-//  Serial.println(" m");
-//
-//  Serial.print("Humidity = ");
-//  Serial.print(bme.readHumidity());
-//  Serial.println(" %");
-//
-//  Serial.println();
-//}
-
-void print(int firstSegment, int secondSegment, int thirdSegment, int fourthSegment) {
-  print(firstSegment, secondSegment, thirdSegment, fourthSegment, POINT_OFF);
-}
-
-void print(int firstSegment, int secondSegment, int thirdSegment, int fourthSegment, bool dots) {
-  timeDisplay[0] = firstSegment;
-  timeDisplay[1] = secondSegment;
-  timeDisplay[2] = thirdSegment;
-  timeDisplay[3] = fourthSegment;
-
-  tm1637.point(dots);
-  tm1637.display(timeDisplay);
 }
