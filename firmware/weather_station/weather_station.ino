@@ -8,6 +8,13 @@
   SCK (Serial Clock)  ->  A5 on Uno/Pro-Mini, 21 on Mega2560/Due, 3 Leonardo/Pro-Micro
 */
 
+/*
+  Encoder
+  Key - SW
+  S1 - CLK
+  S2 - DT
+*/
+
 #include <Wire.h>
 #include <SPI.h>
 #include <Adafruit_Sensor.h>
@@ -18,10 +25,17 @@
 #include <DallasTemperature.h>
 #include <RTClib.h>
 
-#define CLK 5 // DISPLAY pins definitions for TM1637 and can be changed to other ports
-#define DIO 4 // DISPLAY pins definitions for TM1637 and can be changed to other ports
+#include "GyverTM1637.h"
+#include "GyverEncoder.h"
 
-#define ONE_WIRE_BUS 8 // DS1820 Pin
+#define DISPLAY_CLK   5 // DISPLAY pins definitions for TM1637 and can be changed to other ports
+#define DISPLAY_DIO   4 // DISPLAY pins definitions for TM1637 and can be changed to other ports
+
+#define ONE_WIRE_BUS  10 // DS1820 Pin
+
+#define ENCODER_CLK   7 // S1 - CLK
+#define ENCODER_DT    8 // S2 - DT
+#define ENCODER_SW    9 // Key - SW
 
 #define SEALEVELPRESSURE_HPA (1013.25)
 
@@ -32,10 +46,15 @@
 #define TIME_MODE            4
 #define SETTINGS_MODE        5
 
+#define MENU_ITEMS_COUNT 6
+
 #define BME280_ADDRESS (0x76)
 
 Adafruit_BME280 bme; // I2C
-TM1637 tm1637(CLK, DIO);
+
+GyverTM1637 disp(DISPLAY_CLK, DISPLAY_DIO);
+
+Encoder enc1(ENCODER_CLK, ENCODER_DT, ENCODER_SW);
 
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensor(&oneWire);
@@ -55,6 +74,11 @@ void setup() {
   initRTC();
   initDs1Sensor();
   initDisplay();
+  initEncoder();
+}
+
+void initEncoder() {
+  enc1.setType(TYPE2);
 }
 
 void initRTC() {
@@ -99,22 +123,35 @@ void initDs1Sensor() {
 
 void loop() {
   tickEncoder();
+
   tickTemperatureBme();
   tickTemperatureDs1();
+
   tickPressure();
   tickHumidity();
   tickTime();
+
   tickSettings();
 
   delay(delayTime);
 }
 
 void initDisplay() {
-  tm1637.init();
-  tm1637.set(BRIGHT_TYPICAL);
+  disp.clear();
+  disp.brightness(4);
 }
 
 void tickEncoder() {
+  enc1.tick();
+
+  if (enc1.isRight()) mode++;
+  if (enc1.isLeft()) mode--;
+
+  if (mode < 0) {
+    mode = MENU_ITEMS_COUNT - 1;
+  } else if (mode >= MENU_ITEMS_COUNT) {
+    mode = 0;
+  }
 }
 
 void tickTemperatureBme() {
@@ -160,47 +197,48 @@ void tickTime() {
 
 void tickSettings() {
   if (SETTINGS_MODE == mode) {
-
+    // Proccess available settings
   }
 }
 
 void printTemperature(float temperature) {
-
+  disp.displayInt(-999);
 }
 
 
 void printHumidity(float humidity) {
-
+  disp.displayInt(-999);
 }
 
 void printPressure(float pressure) {
-
+  disp.displayInt(-999);
 }
 
 void printTime(int hours, int minutes, bool dots) {
-  print(hours / 10, hours % 10, minutes / 10, minutes % 10, dots);
+  disp.point(flag);
+  disp.displayClock(hours, minutes);
 }
 
-void printValues() {
-  Serial.print("Temperature = ");
-  Serial.print(bme.readTemperature());
-  Serial.println(" *C");
-
-  Serial.print("Pressure = ");
-
-  Serial.print(bme.readPressure() / 100.0F);
-  Serial.println(" hPa");
-
-  Serial.print("Approx. Altitude = ");
-  Serial.print(bme.readAltitude(SEALEVELPRESSURE_HPA));
-  Serial.println(" m");
-
-  Serial.print("Humidity = ");
-  Serial.print(bme.readHumidity());
-  Serial.println(" %");
-
-  Serial.println();
-}
+//void printValues() {
+//  Serial.print("Temperature = ");
+//  Serial.print(bme.readTemperature());
+//  Serial.println(" *C");
+//
+//  Serial.print("Pressure = ");
+//
+//  Serial.print(bme.readPressure() / 100.0F);
+//  Serial.println(" hPa");
+//
+//  Serial.print("Approx. Altitude = ");
+//  Serial.print(bme.readAltitude(SEALEVELPRESSURE_HPA));
+//  Serial.println(" m");
+//
+//  Serial.print("Humidity = ");
+//  Serial.print(bme.readHumidity());
+//  Serial.println(" %");
+//
+//  Serial.println();
+//}
 
 void print(int firstSegment, int secondSegment, int thirdSegment, int fourthSegment) {
   print(firstSegment, secondSegment, thirdSegment, fourthSegment, POINT_OFF);
