@@ -7,13 +7,7 @@
   SDA (Serial Data)   ->  A4 on Uno/Pro-Mini, 20 on Mega2560/Due, 2 Leonardo/Pro-Micro
   SCK (Serial Clock)  ->  A5 on Uno/Pro-Mini, 21 on Mega2560/Due, 3 Leonardo/Pro-Micro
 */
-
-/*
-  Encoder
-  Key - SW
-  S1 - CLK
-  S2 - DT
-*/
+#include <math.h>
 
 #include <Wire.h>
 #include <SPI.h>
@@ -32,9 +26,9 @@
 
 #define ONE_WIRE_BUS  10 // DS1820 Pin
 
-#define ENCODER_CLK   7 // S1 - CLK
-#define ENCODER_DT    8 // S2 - DT
-#define ENCODER_SW    9 // Key - SW
+#define ENCODER_CLK   7 // Encoder S1 - CLK
+#define ENCODER_DT    8 // Encoder S2 - DT
+#define ENCODER_SW    9 // Encoder Key - SW
 
 #define SEALEVELPRESSURE_HPA (1013.25)
 
@@ -42,13 +36,13 @@
 #define TEMPERATURE_DS1_MODE 1
 #define PRESSURE_MODE        2
 #define HUMIDITY_MODE        3
-#define TIME_MODE            4
-#define SETTINGS_MODE        5
+#define DEW_POINT            4
+#define TIME_MODE            5
+#define SETTINGS_MODE        6
 
-#define MENU_ITEMS_COUNT 6
+#define MENU_ITEMS_COUNT 7
 
-#define BME280_ADDRESS (0x76)
-
+// redefine BME280_ADDRESS to 0x76 in Adafruit_BME280.h
 Adafruit_BME280 bme; // I2C
 
 GyverTM1637 disp(DISPLAY_CLK, DISPLAY_DIO);
@@ -64,14 +58,13 @@ int mode = TIME_MODE;
 
 int previous_second = -1;
 bool is_updating = false;
-bool curr_dots = POINT_OFF; // displays dots in clock
 
-int value = 0;
+bool curr_dots = POINT_OFF; // displays dots in clock
 
 void setup() {
   Serial.begin(9600);
 
-  //initBmeSensor();
+  initBmeSensor();
   initRTC();
   initDs1Sensor();
   initDisplay();
@@ -134,20 +127,16 @@ void loop() {
     is_updating = true;
   }
 
-  //tickTemperatureBme();
+  tickTemperatureBme();
   tickTemperatureDs1();
 
-  //tickPressure();
-  //tickHumidity();
+  tickPressure();
+  tickHumidity();
+  tickDewPoint();
+
   tickTime();
 
-  //tickSettings();
-
-  //delay(delayTime);
-  if (is_updating && (mode != TIME_MODE && mode != TEMPERATURE_DS1_MODE)) {
-    disp.point(POINT_OFF);
-    disp.displayByte(0x40, 0x40, 0x40, 0x40);
-  }
+  tickSettings();
 
   is_updating = false;
 }
@@ -171,6 +160,9 @@ void tickEncoder() {
 
   if (enc1.isTurn()) {
     is_updating = true;
+
+    disp.point(POINT_OFF);
+    disp.displayByte(0x40, 0x40, 0x40, 0x40);
   }
 }
 
@@ -191,7 +183,7 @@ void tickTemperatureDs1() {
 
 void tickPressure() {
   if (is_updating == true && PRESSURE_MODE == mode) {
-    float pressure = (bme.readPressure() / 100.0F); // hPa
+    float pressure = bme.readPressure() / 100.0F; // hPa
     printHumidity(pressure);
   }
 }
@@ -216,20 +208,53 @@ void tickSettings() {
   }
 }
 
+void tickDewPoint() {
+  if (is_updating && DEW_POINT == mode) {
+    float dewPoint = getDewPoint();
+    printTemperature(dewPoint);
+  }
+}
+
+/**
+ * Calculates Dew Point.
+ * https://en.wikipedia.org/wiki/Dew_point#Calculating_the_dew_point
+ */
+float getDewPoint() {
+  float b = 17.62;
+  float c = 243.12;
+  float temperature = bme.readTemperature();
+  float humidity = bme.readHumidity();
+  float gamma = (b * temperature / (c + temperature)) + log(humidity / 100.0);
+
+  return (c * gamma) / (b - gamma);
+}
+
+/**
+ * "29:8_" <- 28.9C
+ * "_9:5_" <- 9.5C
+ * "_9:5-" <- -9.5C
+ */
 void printTemperature(float temperature) {
   disp.displayInt(int(temperature));
 }
 
-
+/**
+ * 49.7p
+ */
 void printHumidity(float humidity) {
   disp.displayInt(int(humidity));
 }
 
+/**
+ * pressure in "hPa"
+ * Displays pressure in "mm Hg".
+ */
 void printPressure(float pressure) {
+  pressure = pressure / 133.322;
   disp.displayInt(int(pressure));
 }
 
-void printTime(int hours, int minutes, bool dots) {
+void printTime(uint8_t hours, uint8_t minutes, bool dots) {
   disp.point(dots);
   disp.displayClock(hours, minutes);
 }
