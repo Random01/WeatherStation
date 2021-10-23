@@ -1,0 +1,6 @@
+{
+    "programmer": "AVRISP mkII",
+    "board": "WAV:avr:lardu_328p",
+    "sketch": "weather_station.ino",
+    "port": "COM5"
+}
