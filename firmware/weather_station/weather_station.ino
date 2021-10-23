@@ -58,6 +58,7 @@ int mode = TIME_MODE;
 
 int previous_second = -1;
 bool is_updating = false;
+DateTime now;
 
 bool curr_dots = POINT_OFF; // displays dots in clock
 
@@ -118,7 +119,7 @@ void initDs1Sensor() {
 void loop() {
   tickEncoder();
 
-  DateTime now = rtc.now();
+  now = rtc.now();
   uint8_t second =  now.second();
   if (previous_second != second) {
     previous_second = second;
@@ -173,6 +174,9 @@ void tickTemperatureBme() {
   }
 }
 
+/**
+ * External temperature sensor number 1.
+ */
 void tickTemperatureDs1() {
   if (is_updating == true && TEMPERATURE_DS1_MODE == mode) {
     sensor.requestTemperatures();
@@ -195,9 +199,11 @@ void tickHumidity() {
   }
 }
 
+/**
+ * Displays time.
+ */
 void tickTime() {
   if (is_updating && TIME_MODE == mode) {
-    DateTime now = rtc.now();
     printTime(now.hour(), now.minute(), curr_dots);
   }
 }
@@ -208,6 +214,9 @@ void tickSettings() {
   }
 }
 
+/**
+ * Displays Dew Point.
+ */
 void tickDewPoint() {
   if (is_updating && DEW_POINT == mode) {
     float dewPoint = getDewPoint();
@@ -216,9 +225,9 @@ void tickDewPoint() {
 }
 
 /**
- * Calculates Dew Point.
- * https://en.wikipedia.org/wiki/Dew_point#Calculating_the_dew_point
- */
+   Calculates Dew Point.
+   https://en.wikipedia.org/wiki/Dew_point#Calculating_the_dew_point
+*/
 float getDewPoint() {
   float b = 17.62;
   float c = 243.12;
@@ -230,25 +239,35 @@ float getDewPoint() {
 }
 
 /**
- * "29:8_" <- 28.9C
- * "_9:5_" <- 9.5C
- * "_9:5-" <- -9.5C
- */
+   "29:8_" <- 28.9C
+   "_9:5_" <- 9.5C
+   "_9:5-" <- -9.5C
+*/
 void printTemperature(float temperature) {
-  disp.displayInt(int(temperature));
+  bool belowZero = temperature < 0;
+
+  uint8_t bit1 = digToHEX(1);
+  uint8_t bit2 = digToHEX(5);
+  uint8_t bit3 = digToHEX(6);
+  uint8_t bit4 = belowZero ? 0x40 : 0x00;
+
+  disp.point(POINT_ON);
+  disp.display(bit1, bit2, bit3, bit4);
 }
 
 /**
- * 49.7p
- */
+   49.7p
+*/
 void printHumidity(float humidity) {
+
+  
   disp.displayInt(int(humidity));
 }
 
 /**
- * pressure in "hPa"
- * Displays pressure in "mm Hg".
- */
+   pressure in "hPa"
+   Displays pressure in "mm Hg".
+*/
 void printPressure(float pressure) {
   pressure = pressure / 133.322;
   disp.displayInt(int(pressure));
